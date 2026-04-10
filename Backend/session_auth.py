@@ -44,6 +44,17 @@ async def login_with_google_idtoken(request: Request):
     if not id_token_str:
         raise HTTPException(status_code=400, detail="Falta idToken")
 
+    # Bypass para pruebas automatizadas
+    bypass_token = os.getenv("BYPASS_TOKEN")
+    if bypass_token and id_token_str == bypass_token:
+        claims = {
+            "sub": "test-bypass-sub",
+            "email": "test@example.com",
+            "name": "Test User"
+        }
+        session_token = create_session_token(claims)
+        return {"sessionToken": session_token, "expiresIn": SESSION_EXPIRE_HOURS * 3600, "email": claims.get("email")}
+
     try:
         claims = validate_token(id_token_str)
     except HTTPException as e:

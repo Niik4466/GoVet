@@ -156,11 +156,11 @@ try:
         cur.execute("""
             INSERT INTO govet.tutor (rut, nombre, apellido_paterno, apellido_materno, 
                                      telefono, telefono2, celular, celular2, 
-                                     region, comuna, direccion, email, observacion)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                     region, comuna, direccion, email, observacion, activo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT DO NOTHING;
         """, (rut, nombres, apellidoPaterno, apellidoMaterno, telefono1, telefono2, 
-              celular1, celular2, region, comuna, direccion, email, observacion))
+              celular1, celular2, region, comuna, direccion, email, observacion, True))
         tutores_insertados += 1
 
     conn.commit()
@@ -182,6 +182,7 @@ try:
         color = row['COLOR']
         sexo = row['SEXO_SIGLA']
         esterilizado = row['ESTERILIZADO']
+        id_paciente = row['CÓDIGO MASCOTA'] if 'CÓDIGO MASCOTA' in row and pd.notna(row['CÓDIGO MASCOTA']) else None
         
         if pd.notna(esterilizado):
             esterilizado = bool(int(esterilizado))
@@ -193,12 +194,20 @@ try:
         codigo_chip = row['CHIP']
 
         if pd.notna(nombre):
-            cur.execute("""
-                INSERT INTO govet.paciente (id_paciente, nombre, color, sexo, 
-                                           esterilizado, fecha_nacimiento, id_raza, codigo_chip)
-                VALUES (DEFAULT, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING;
-            """, (nombre, color, sexo, esterilizado, fecha_nacimiento, id_raza, codigo_chip))
+            if id_paciente:
+                cur.execute("""
+                    INSERT INTO govet.paciente (id_paciente, nombre, color, sexo, 
+                                               esterilizado, fecha_nacimiento, id_raza, codigo_chip, activo)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id_paciente) DO NOTHING;
+                """, (id_paciente, nombre, color, sexo, esterilizado, fecha_nacimiento, id_raza, codigo_chip, True))
+            else:
+                cur.execute("""
+                    INSERT INTO govet.paciente (id_paciente, nombre, color, sexo, 
+                                               esterilizado, fecha_nacimiento, id_raza, codigo_chip, activo)
+                    VALUES (DEFAULT, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING;
+                """, (nombre, color, sexo, esterilizado, fecha_nacimiento, id_raza, codigo_chip, True))
             pacientes_insertados += 1
 
     conn.commit()
@@ -303,7 +312,7 @@ diagnosticos_gatos = [
 estados_pelaje = ["Normal", "Opaco", "Brillante", "Reseco", "Graso", "Con caspa", "Irregular"]
 condiciones_corporales = ["1/5 - Caquéctico", "2/5 - Delgado", "3/5 - Ideal", "4/5 - Sobrepeso", "5/5 - Obeso"]
 mucosas = ["Rosadas", "Pálidas", "Congestivas", "Ictéricas", "Cianóticas"]
-dht_estados = ["< 2 segundos (normal)", "2-3 segundos (leve deshidratación)", "> 3 segundos (deshidratación moderada)"]
+dht_estados = [0, 1, 2] # 0: normal, 1: leve, 2: moderada
 nodulos_estados = ["Normales", "Aumentados", "Dolorosos", "No palpables"]
 auscultacion = ["Normal", "Soplo grado I/VI", "Soplo grado II/VI", "Frecuencia aumentada", "Frecuencia disminuida", "Crepitaciones leves"]
 
@@ -426,10 +435,38 @@ except Exception as e:
     conn.rollback()
 
 # =============================================================================
+# 6. SINCRONIZAR SECUENCIAS
+# =============================================================================
+print("\n🔄 7/7 - Sincronizando secuencias de IDs...")
+try:
+    secuencias = {
+        "especie": ("id_especie", "especie_id_especie_seq"),
+        "raza": ("id_raza", "raza_id_raza_seq"),
+        "paciente": ("id_paciente", "mascota_id_mascota_seq"),
+        "tutor": ("rut", None), 
+        "consulta": ("id_consulta", "consulta_id_consulta_seq"),
+        "tratamiento": ("id_tratamiento", "tratamiento_id_tratamiento_seq"),
+        "consulta_tratamiento": ("id_consulta_tratamiento", "consulta_tratamiento_id_aplicacion_seq")
+    }
+    
+    for tabla, (pk, seq) in secuencias.items():
+        if seq:
+            cur.execute(f"SELECT MAX({pk}) FROM govet.{tabla}")
+            max_id = cur.fetchone()[0]
+            if max_id:
+                cur.execute(f"SELECT setval('govet.{seq}', %s, true)", (max_id,))
+                print(f"   ✅ Secuencia {seq} sincronizada en {max_id}")
+    
+    conn.commit()
+except Exception as e:
+    print(f"   ⚠️  Advertencia sincronizando secuencias: {e}")
+    conn.rollback()
+
+# =============================================================================
 # RESUMEN FINAL
 # =============================================================================
 print("\n" + "="*60)
-print("✅ PROCESO COMPLETADO")
+print("✅ PROCESO COMPLETADO EXITOSAMENTE")
 print("="*60)
 
 try:
@@ -452,7 +489,7 @@ try:
     cur.execute("SELECT COUNT(*) FROM govet.consulta")
     total_consultas = cur.fetchone()[0]
     
-    print(f"📊 Total en base de datos:")
+    print(f"\n📊 Estado final de la base de datos:")
     print(f"   - Especies: {total_especies}")
     print(f"   - Razas: {total_razas}")
     print(f"   - Tutores: {total_tutores}")
