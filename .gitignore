@@ -45,7 +45,6 @@ yarn-error.log*
 .eslintcache
 
 # Testing scripts locales (no subir)
-test_*.py
 *_test.py
 testing/
 temp/
