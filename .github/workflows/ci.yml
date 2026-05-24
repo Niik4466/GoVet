@@ -17,8 +17,8 @@ jobs:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
       DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
-      BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE || 'govet-backend' }}
-      FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE || 'govet-frontend' }}
+      BACKEND_IMAGE: ${{ secrets.BACKEND_IMAGE || format('{0}/govet-backend', secrets.DOCKER_USERNAME) }}
+      FRONTEND_IMAGE: ${{ secrets.FRONTEND_IMAGE || format('{0}/govet-frontend', secrets.DOCKER_USERNAME) }}
       IMAGE_TAG: ${{ github.sha }}
 
     steps:
