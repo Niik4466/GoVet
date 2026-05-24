@@ -62,7 +62,9 @@ fi
 if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     log_info "Instalando dependencias de testing adicionales (CI)..."
     if [ -f "${ROOT_DIR}/tests/selenium/requirements.txt" ]; then
-        $PIP_CMD install -r "${ROOT_DIR}/tests/selenium/requirements.txt"
+        $PIP_CMD install -r "${ROOT_DIR}/tests/selenium/requirements.txt" || \
+        $PIP_CMD install -r "${ROOT_DIR}/tests/selenium/requirements.txt" --break-system-packages || \
+        log_info "Advertencia: Ocurrió un problema al instalar las dependencias de testing. Intentando continuar..."
     fi
 fi
 
