@@ -49,6 +49,23 @@ else
     exit 1
 fi
 
+# Determinar comando de pip
+if command -v pip3 &> /dev/null; then
+    PIP_CMD="pip3"
+elif command -v pip &> /dev/null; then
+    PIP_CMD="pip"
+else
+    PIP_CMD="$PYTHON_CMD -m pip"
+fi
+
+# Instalamos los requerimientos específicos de testing si estamos en CI o localmente antes del chequeo de pytest
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    log_info "Instalando dependencias de testing adicionales (CI)..."
+    if [ -f "${ROOT_DIR}/tests/selenium/requirements.txt" ]; then
+        $PIP_CMD install -r "${ROOT_DIR}/tests/selenium/requirements.txt"
+    fi
+fi
+
 # Determinar cómo ejecutar pytest (como comando global o módulo python)
 if command -v pytest &> /dev/null; then
     PYTEST_CMD="pytest"
@@ -57,8 +74,22 @@ elif $PYTHON_CMD -m pytest --version &> /dev/null; then
     PYTEST_CMD="$PYTHON_CMD -m pytest"
     log_info "  - [OK] pytest encontrado como módulo de Python."
 else
-    log_error "pytest no está instalado. Instálalo globalmente o en tu entorno virtual actual."
-    exit 1
+    log_info "pytest no encontrado de forma global. Intentando instalar requerimientos locales de testing..."
+    if [ -f "${ROOT_DIR}/tests/selenium/requirements.txt" ]; then
+        $PIP_CMD install -r "${ROOT_DIR}/tests/selenium/requirements.txt" || true
+    fi
+    
+    # Volvemos a chequear tras la instalación
+    if command -v pytest &> /dev/null; then
+        PYTEST_CMD="pytest"
+        log_info "  - [OK] pytest encontrado tras instalación: $($PYTEST_CMD --version | head -n 1)"
+    elif $PYTHON_CMD -m pytest --version &> /dev/null; then
+        PYTEST_CMD="$PYTHON_CMD -m pytest"
+        log_info "  - [OK] pytest encontrado tras instalación como módulo de Python."
+    else
+        log_error "pytest no está instalado y no pudo ser instalado automáticamente."
+        exit 1
+    fi
 fi
 
 # ------------------------------------------------------------------------------
@@ -66,22 +97,6 @@ fi
 # ------------------------------------------------------------------------------
 log_info "Iniciando ejecución de pruebas con PyTest..."
 cd "${ROOT_DIR}/tests/selenium"
-
-# Instalamos los requerimientos específicos de testing localmente si estamos en CI
-if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    log_info "Instalando dependencias de testing adicionales (CI)..."
-    if [ -f "requirements.txt" ]; then
-        # Determinamos comando de pip
-        if command -v pip3 &> /dev/null; then
-            PIP_CMD="pip3"
-        elif command -v pip &> /dev/null; then
-            PIP_CMD="pip"
-        else
-            PIP_CMD="$PYTHON_CMD -m pip"
-        fi
-        $PIP_CMD install -r requirements.txt || true
-    fi
-fi
 
 log_info "Ejecutando suite pytest..."
 # NOTA: En entornos reales de CI sin interfaz gráfica (headless), pytest con Selenium 
