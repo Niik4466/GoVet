@@ -42,16 +42,12 @@ check_dep "docker" "Docker CLI"
 # 2. Cargar variables de entorno (.env)
 # ------------------------------------------------------------------------------
 ENV_FILE="${ROOT_DIR}/.env"
-ENV_EXAMPLE="${ROOT_DIR}/.env.example"
 
 if [ -f "$ENV_FILE" ]; then
     log_info "Cargando variables de entorno desde .env..."
     export $(grep -v '^#' "$ENV_FILE" | xargs)
-elif [ -f "$ENV_EXAMPLE" ]; then
-    log_info "No se encontró .env. Cargando variables por defecto desde .env.example..."
-    export $(grep -v '^#' "$ENV_EXAMPLE" | xargs)
 else
-    log_info "No se encontró ningún archivo de entorno. Se usarán valores predefinidos."
+    log_info "No se detectó el archivo .env. Se conservarán las variables de entorno del sistema."
 fi
 
 # Definir variables por defecto si no fueron definidas
